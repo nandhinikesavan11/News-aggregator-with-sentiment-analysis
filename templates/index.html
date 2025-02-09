@@ -1,90 +1,243 @@
-from flask import Flask, render_template, request
-import feedparser
-from datetime import datetime
-from nltk import download
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-from nltk.tokenize import sent_tokenize
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Aggregator With Sentiment Analysis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            padding-top: 70px;
+            transition: background-color 0.3s, color 0.3s;
+        }
 
-# Download necessary NLTK data files
-download('vader_lexicon')
-download('punkt')
+        .navbar {
+            background-color: #007bff;
+        }
 
-# Initialize Flask app
-app = Flask(__name__)
+        .navbar-brand, .nav-link {
+            color: white;
+        }
 
-# Initialize sentiment analyzer
-sentiment_analyzer = SentimentIntensityAnalyzer()
+        .navbar-brand:hover, .nav-link:hover {
+            color: #ffc107;
+        }
 
-# RSS Feeds for various categories
-RSS_FEEDS = {
-    "world": "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "politics": "http://feeds.bbci.co.uk/news/politics/rss.xml",
-    "entertainment": "http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-    "sports": "http://feeds.bbci.co.uk/sport/rss.xml",
-    "technology": "http://feeds.bbci.co.uk/news/technology/rss.xml",
-    "fashion": "https://www.vogue.com/rss",
-    "stories": "http://feeds.bbci.co.uk/news/stories/rss.xml",
-}
+        .card {
+            margin-bottom: 20px;
+            border: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
 
-# Helper function to fetch and parse RSS feeds with pagination
-def fetch_news(category, page=1, per_page=50):
-    feed = feedparser.parse(RSS_FEEDS[category])
-    news_items = feed.entries  # Get all items from the RSS feed
-    # Sort news by published date in descending order (latest first)
-    news_items.sort(key=lambda x: x.get("published_parsed"), reverse=True)
-    
-    # Paginate the news items
-    start_index = (page - 1) * per_page
-    end_index = start_index + per_page
-    return news_items[start_index:end_index], len(news_items)  # Return news items for this page and total count
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
 
-# Helper function to summarize news content
-def summarize_content(content, summary_length=3):
-    sentences = sent_tokenize(content)
-    return ' '.join(sentences[:summary_length])
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            border-bottom: 3px solid #0056b3;
+        }
 
-# Helper function to determine the sentiment of the news
-def analyze_sentiment(content):
-    score = sentiment_analyzer.polarity_scores(content)
-    if score["compound"] >= 0.05:
-        return "Positive"
-    elif score["compound"] <= -0.05:
-        return "Negative"
-    else:
-        return "Neutral"
+        .card-body {
+            background-color: #ffffff;
+            padding: 20px;
+        }
 
-# Route for the homepage with pagination
-@app.route("/", methods=["GET", "POST"])
-def index():
-    selected_category = request.form.get("category", "world")
-    selected_sentiment = request.form.get("sentiment", "all")
-    current_page = int(request.args.get("page", 1))  # Default to page 1 if not specified
+        .card-footer {
+            background-color: #f7f7f7;
+            border-top: 1px solid #e3e6f0;
+        }
 
-    # Fetch and sort news based on category and page
-    news_items, total_items = fetch_news(selected_category, current_page)
-    total_pages = (total_items // 50) + (1 if total_items % 50 != 0 else 0)  # Calculate total pages
+        .dropdown-container {
+            margin-bottom: 20px;
+        }
 
-    formatted_news = []
+        .filter-btns {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
 
-    # Format news items with summary, publication date, and sentiment
-    for item in news_items:
-        summary = summarize_content(item.description)
-        published_time = datetime(*item.published_parsed[:6]).strftime("%Y-%m-%d %H:%M:%S") if item.published_parsed else "Unknown"
-        sentiment = analyze_sentiment(summary)
+        .time-ago {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
 
-        formatted_news.append({
-            "title": item.title,
-            "link": item.link,
-            "summary": summary,
-            "published": published_time,
-            "sentiment": sentiment
-        })
+        .badge {
+            text-transform: capitalize;
+        }
 
-    # Filter news items based on selected sentiment, if applicable
-    if selected_sentiment != "all":
-        formatted_news = [item for item in formatted_news if item["sentiment"] == selected_sentiment]
+        .badge-positive {
+            background-color: #28a745;
+        }
 
-    return render_template("index.html", news=formatted_news, categories=RSS_FEEDS.keys(), category=selected_category, sentiment=selected_sentiment, current_page=current_page, total_pages=total_pages)
+        .badge-negative {
+            background-color: #dc3545;
+        }
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        .badge-neutral {
+            background-color: #17a2b8;
+        }
+
+        .container {
+            max-width: 1200px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #007bff;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .select-dropdown {
+            border: 2px solid #007bff;
+            border-radius: 5px;
+        }
+
+        .select-dropdown:focus {
+            border-color: #0056b3;
+        }
+
+        /* Dark mode styles */
+        .dark-mode {
+            background-color: #343a40;
+            color: white;
+        }
+
+        .dark-mode .card {
+            background-color: #495057;
+            color: white;
+        }
+
+        .dark-mode .card-header {
+            background-color: #007bff;
+        }
+
+        .dark-mode .card-body {
+            background-color: #495057;
+        }
+
+        .dark-mode .card-footer {
+            background-color: #212529;
+        }
+
+        .dark-mode .navbar {
+            background-color: #1c1e22;
+        }
+
+        .dark-mode .navbar-brand, .dark-mode .nav-link {
+            color: white;
+        }
+
+        .dark-mode .navbar-brand:hover, .dark-mode .nav-link:hover {
+            color: #ffc107;
+        }
+
+        .dark-mode .badge-positive {
+            background-color: #28a745;
+        }
+
+        .dark-mode .badge-negative {
+            background-color: #dc3545;
+        }
+
+        .dark-mode .badge-neutral {
+            background-color: #17a2b8;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+    <div class="container">
+        <button class="btn btn-outline-light" id="toggle-mode">
+            <i class="fas fa-moon"></i> Dark Mode
+        </button>
+    </div>
+</nav>
+
+<div class="container">
+    <!-- Title centered on top -->
+    <h1 class="my-4">News Aggregator With Sentiment Analysis</h1>
+
+    <!-- Category & Sentiment Filters -->
+    <div class="dropdown-container">
+        <form method="POST" action="/">
+            <div class="row">
+                <div class="col-12 col-md-6">
+                    <select class="form-select select-dropdown" name="category" onchange="this.form.submit()">
+                        <option value="world" {% if category == 'world' %}selected{% endif %}>World News</option>
+                        <option value="politics" {% if category == 'politics' %}selected{% endif %}>Politics</option>
+                        <option value="entertainment" {% if category == 'entertainment' %}selected{% endif %}>Entertainment</option>
+                        <option value="sports" {% if category == 'sports' %}selected{% endif %}>Sports</option>
+                        <option value="technology" {% if category == 'technology' %}selected{% endif %}>Technology</option>
+                        <option value="fashion" {% if category == 'fashion' %}selected{% endif %}>Fashion</option>
+                        <option value="stories" {% if category == 'stories' %}selected{% endif %}>Stories</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6">
+                    <select class="form-select select-dropdown" name="sentiment" onchange="this.form.submit()">
+                        <option value="all" {% if sentiment == 'all' %}selected{% endif %}>All Sentiments</option>
+                        <option value="Positive" {% if sentiment == 'Positive' %}selected{% endif %}>Positive</option>
+                        <option value="Negative" {% if sentiment == 'Negative' %}selected{% endif %}>Negative</option>
+                        <option value="Neutral" {% if sentiment == 'Neutral' %}selected{% endif %}>Neutral</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- News Cards -->
+    <div class="row">
+        {% for news in news %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">{{ news.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">{{ news.summary }}</p>
+                    <a href="{{ news.link }}" class="btn btn-primary" target="_blank">Read More</a>
+                    <p class="time-ago">{{ news.published }} | Sentiment: <span class="badge {% if news.sentiment == 'Positive' %}badge-positive{% elif news.sentiment == 'Negative' %}badge-negative{% else %}badge-neutral{% endif %}">{{ news.sentiment }}</span></p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Toggle dark mode and light mode
+    const toggleButton = document.getElementById('toggle-mode');
+    const body = document.body;
+    const currentMode = localStorage.getItem('mode');
+
+    if (currentMode === 'dark') {
+        body.classList.add('dark-mode');
+        toggleButton.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+    }
+
+    toggleButton.addEventListener('click', function() {
+        if (body.classList.contains('dark-mode')) {
+            body.classList.remove('dark-mode');
+            localStorage.setItem('mode', 'light');
+            toggleButton.innerHTML = '<i class="fas fa-moon"></i> Dark Mode';
+        } else {
+            body.classList.add('dark-mode');
+            localStorage.setItem('mode', 'dark');
+            toggleButton.innerHTML = '<i class="fas fa-sun"></i> Light Mode';
+        }
+    });
+</script>
+
+</body>
+</html>
